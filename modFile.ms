@@ -66,11 +66,9 @@ Sample.load = function(bs)
 	samp.volume = bs.readByte
 	samp.repeatStart = bs.readUshort * 2
 	samp.repeatLen = bs.readUshort * 2
-	print "Sample " + samp.name + " has " + samp.bytes + " bytes"
 	return samp
 end function
 Sample.loadWaveform = function(bs)
-	print "Loading " + self.bytes + " for " + self.name
 	if self.bytes < 1 then
 		self.waveform = []
 	else
@@ -95,13 +93,30 @@ end function
 Pattern = {}
 Pattern.load = function(bs)
 	pat = new Pattern
-	pat.notes = list.init2d(64, 4)  // indexed by [division][channel]
-	for division in range(0, 63)
+	pat.notes = list.init2d(64, 4)  // indexed by [row][channel]
+	for row in range(0, 63)
 		for channel in range(0, 3)
-			pat.notes[division][channel] = Note.load(bs)
+			pat.notes[row][channel] = Note.load(bs)
 		end for
 	end for
 	return pat
+end function
+Pattern.getString = function(row)
+	result = []
+	for channel in range(0, 3)
+		result.push self.notes[row][channel].str
+	end for
+	return (" " + row)[-2:] + ". " + result.join(" | ")
+end function
+Pattern.toStringList = function
+	result = []
+	for row in range(0,63)
+		result.push self.getString(row)
+	end for
+	return result
+end function
+Pattern.view = function
+	pageThrough self.toStringList
 end function
 	
 
@@ -121,6 +136,15 @@ Note.load = function(bs)
 	note.period = (b1 % 16) * 256 + b2
 	note.effect = [b3 % 16, floor(b4 / 16), b4 % 16]
 	return note
+end function
+hexDigits = "0123456789ABCDEF"
+Note.str = function
+	s = ("   " + self.period)[-4:] +
+	  ("  " + self.sampleNumber)[-3:] + " " +
+	  hexDigits[self.effect[0]] + " " + 
+	  hexDigits[self.effect[1]] + 
+	  hexDigits[self.effect[2]]
+	return s
 end function
 
 // And, here's the code to create a song from a data file.
@@ -155,9 +179,7 @@ Song.load = function(rawDataOrPath)
 		song.patSequence.push(bs.readByte)
 	end for
 	bs.pos = bs.pos + (128-songLength)  // (skip unused pattern slots)
-	magicStringAgain = bs.readString(4)
-	print "Magic string (again): " + magicStringAgain
-	
+		
 	song.patterns = []
 	maxPat = song.patSequence.max
 	for i in range(1, maxPat)
