@@ -74,7 +74,7 @@ Sample.loadWaveform = function(bs)
 	else
 		self.waveform = [0] * self.bytes
 		for i in range(0, self.bytes-1)
-			self.waveform[i] = bs.readSbyte / 127		
+			self.waveform[i] = bs.readSbyte / 128		
 		end for
 	end if
 end function
@@ -83,10 +83,18 @@ Sample.getSound = function
 	duration = self.waveform.len / 8287
 	freq = 1 / duration
 	snd.init duration, freq, 1, self.waveform
-	// Note: this sets the sound up to be played at C3
+	// Note: this sets the sound up to be played at C2
 	// (period 428 by MOD standards).  To get the proper
 	// speed for any period, use 428/period.
 	return snd
+end function
+Sample.plot = function(left=0, bottom=0, width=960, height=100)
+	maxi = self.waveform.len - 1
+	for i in self.waveform.indexes
+		x = left + i/maxi * width
+		y = bottom + (self.waveform[i]+1)/2 * height
+		gfx.setPixel x, y, gfx.color
+	end for
 end function
 
 // Define a class to represent one pattern (one measure or phrase of music)
@@ -182,15 +190,18 @@ Song.load = function(rawDataOrPath)
 		
 	song.patterns = []
 	maxPat = song.patSequence.max
-	for i in range(1, maxPat)
+	for i in range(0, maxPat)	// note: patterns are 0-based!
 		song.patterns.push Pattern.load(bs)
 	end for
 	
 	for samp in song.samples
+		print (song.samples.indexOf(samp)+1) + ": " + samp.name + ": " + samp.bytes + " starting at " + bs.pos
 		samp.loadWaveform bs
 	end for
 	
 	return song
 end function
 
-song = Song.load("modfiles/dragnet.mod")
+if locals == globals then
+	song = Song.load("modfiles/dragnet.mod")
+end if
