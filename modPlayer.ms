@@ -1,6 +1,14 @@
 import "modFile"
 import "stringUtil"
 
+min = function(a,b)
+	if a < b then return a else return b
+end function
+max = function(a,b)
+	if a > b then return a else return b
+end function
+
+
 Channel = {}
 Channel.sounds = null	// array of Sounds for use by this channel
 Channel.volFactor = 1	// volume factor (used to quiet or mute channel)
@@ -9,6 +17,9 @@ Channel.curSound = null	// currently playing sound
 Channel.curVolume = 1	// current volume (0-1)
 Channel.curPeriod = 428	// current period
 Channel.curSlidePerTick	= 0 // slide per tick to apply (from effects 1-2)
+Channel.startTime = 0	// time at which we started playing curSound
+Channel.rect = null		// left, bottom, width, height
+Channel.lastMeterLevel = 0
 Channel.applyNote = function(note)
 	if note.sampleNumber != 0 and note.period > 0 then
 		if self.curSound != null then self.curSound.stop
@@ -21,6 +32,7 @@ Channel.applyNote = function(note)
 			self.curSound = null
 		end if
 		self.curPeriod = note.period
+		self.startTime = time
 	end if
 	self.curSlidePerTick = 0
 	if note.effect[0] == 1 then			// slide up
@@ -42,7 +54,35 @@ Channel.tick = function(note)
 			self.curSound.adjust self.curVolume, self.pan, 428 / self.curPeriod
 		end if
 	end if
-end function	
+end function
+Channel.level = function
+	// Compute the current sound level, 0-1, based on the current time,
+	// and the current sound speed and start time.
+	if not self.curSound or self.curVolume == 0 then return 0
+	wave = self.curSound.waveform
+	speed = 428 / self.curPeriod  // note this will be slightly off if period changes during play, but close enough
+	waveSamplesPerSec = 8287 / speed
+	t = time - self.startTime
+	curSample = t * waveSamplesPerSec
+	if curSample > wave.len then return 0
+	startSample = max(0, curSample - 25)
+	endSample = min(wave.len, curSample + 25)
+	globals.samples = wave[startSample:endSample]
+	return (samples.max - samples.min) / 2
+end function
+Channel.updateMeter = function
+	newLevel = self.level
+	if newLevel == self.lastMeterLevel then return
+	r = self.rect
+	if newLevel > self.lastMeterLevel then
+		gfx.fillRect r.left, r.bottom + r.height * self.lastMeterLevel,
+		  r.width, floor((newLevel - self.lastMeterLevel) * r.height), color.yellow
+	else
+		gfx.fillRect r.left, r.bottom + r.height * newLevel,
+		  r.width, ceil((self.lastMeterLevel - newLevel) * r.height), color.black
+	end if
+	self.lastMeterLevel = newLevel
+end function
 
 Player = {}
 Player.song = null		// Song we are playing
@@ -67,6 +107,8 @@ Player.init = function(song)
 		for samp in song.samples
 			chan.sounds.push samp.getSound
 		end for
+		chan.rect = {"left":0, "bottom":500, "width":32, "height":100}
+		chan.rect.left = 50 + 208 * channel
 	end for
 	self.beginStep 2
 end function
@@ -89,6 +131,7 @@ Player.advance = function
 	for chanNum in range(0, 3)
 		note = self.curPat.notes[self.nextDiv][chanNum]
 		self.channels[chanNum].applyNote note
+		self.channels[chanNum].updateMeter
 	end for
 	
 	self.nextDiv = self.nextDiv + 1
@@ -100,8 +143,11 @@ end function
 Player.tick = function
 	for chan in self.channels
 		chan.tick
+		chan.updateMeter
 	end for
 end function
+
+clear
 
 song = modFile.Song.load("modfiles/dragnet.mod")
 player = new Player
