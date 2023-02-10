@@ -56,30 +56,30 @@ Channel.tick = function(note)
 	end if
 end function
 Channel.level = function
-	// Compute the current sound level, 0-1, based on the current time,
-	// and the current sound speed and start time.
+	// Compute the current sound level, 0-1
 	if not self.curSound or self.curVolume == 0 then return 0
-	wave = self.curSound.waveform
-	speed = 428 / self.curPeriod  // note this will be slightly off if period changes during play, but close enough
-	waveSamplesPerSec = 8287 / speed
-	t = time - self.startTime
-	curSample = t * waveSamplesPerSec
-	if curSample > wave.len then return 0
-	startSample = max(0, curSample - 25)
-	endSample = min(wave.len, curSample + 25)
-	globals.samples = wave[startSample:endSample]
-	return (samples.max - samples.min) / 2
+	return self.curSound.amp
+//	wave = self.curSound.waveform
+//	speed = 428 / self.curPeriod  // note this will be slightly off if period changes during play, but close enough
+//	waveSamplesPerSec = 8287 / speed
+//	t = time - self.startTime
+//	curSample = t * waveSamplesPerSec
+//	if curSample > wave.len then return 0
+//	startSample = max(0, curSample - 25)
+//	endSample = min(wave.len, curSample + 25)
+//	globals.samples = wave[startSample:endSample]
+//	return (samples.max - samples.min) / 2
 end function
 Channel.updateMeter = function
 	newLevel = self.level
 	if newLevel == self.lastMeterLevel then return
 	r = self.rect
-	if newLevel > self.lastMeterLevel then
-		gfx.fillRect r.left, r.bottom + r.height * self.lastMeterLevel,
-		  r.width, floor((newLevel - self.lastMeterLevel) * r.height), color.yellow
-	else
-		gfx.fillRect r.left, r.bottom + r.height * newLevel,
-		  r.width, ceil((self.lastMeterLevel - newLevel) * r.height), color.black
+	oldY = round(r.bottom + r.height * self.lastMeterLevel)
+	newY = round(r.bottom + r.height * newLevel)
+	if newY > oldY then
+		gfx.fillRect r.left, oldY, r.width, newY - oldY, color.yellow
+	else if newY < oldY then
+		gfx.fillRect r.left, newY, r.width, oldY - newY + 1, color.black
 	end if
 	self.lastMeterLevel = newLevel
 end function
